@@ -24,6 +24,8 @@ import (
 	"golang.org/x/net/html/charset"
 )
 
+const Version = "0.1.1"
+
 // SitemapIndexEntry is an entry in a sitemap index style sitemap.
 type SitemapIndexEntry struct {
 	XMLName xml.Name `xml:"sitemap"`
@@ -55,13 +57,18 @@ var (
 	defaultCachePath = path.Join(xdg.CacheHome, "sitemap")
 	httpClient       = pester.New()
 
-	maxRetries = flag.Int("r", 3, "max HTTP client retries")
-	cacheDir   = flag.String("cache-dir", defaultCachePath, "path to cache directory")
-	force      = flag.Bool("f", false, "force redownload, even if cached file exists")
+	maxRetries  = flag.Int("r", 3, "max HTTP client retries")
+	cacheDir    = flag.String("cache-dir", defaultCachePath, "path to cache directory")
+	force       = flag.Bool("f", false, "force redownload, even if cached file exists")
+	showVersion = flag.Bool("version", false, "show version")
 )
 
 func main() {
 	flag.Parse()
+	if *showVersion {
+		fmt.Println(Version)
+		os.Exit(0)
+	}
 	if flag.NArg() == 0 {
 		log.Fatal("a sitemap.xml URL is required")
 	}
