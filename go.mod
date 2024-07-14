@@ -7,4 +7,8 @@ require (
 	github.com/sethgrid/pester v1.2.0
 )
 
-require golang.org/x/sys v0.22.0 // indirect
+require (
+	golang.org/x/net v0.27.0 // indirect
+	golang.org/x/sys v0.22.0 // indirect
+	golang.org/x/text v0.16.0 // indirect
+)

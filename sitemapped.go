@@ -21,6 +21,7 @@ import (
 
 	"github.com/adrg/xdg"
 	"github.com/sethgrid/pester"
+	"golang.org/x/net/html/charset"
 )
 
 // SitemapIndexEntry is an entry in a sitemap index style sitemap.
@@ -114,6 +115,7 @@ func isSitemapIndex(filename string) (bool, error) {
 
 func urlsFromSitemapIndex(cache *Cache, r io.Reader, w io.Writer) error {
 	dec := xml.NewDecoder(r)
+	dec.CharsetReader = charset.NewReaderLabel
 	var smi Sitemapindex
 	err := dec.Decode(&smi)
 	if err != nil {
@@ -129,6 +131,7 @@ func urlsFromSitemapIndex(cache *Cache, r io.Reader, w io.Writer) error {
 			return err
 		}
 		dec = xml.NewDecoder(f)
+		dec.CharsetReader = charset.NewReaderLabel
 		var uset Urlset
 		if err := dec.Decode(&uset); err != nil {
 			log.Fatal(err)
@@ -149,6 +152,7 @@ func urlsFromSitemapIndex(cache *Cache, r io.Reader, w io.Writer) error {
 
 func urlsFromSitemap(r io.Reader, w io.Writer) error {
 	dec := xml.NewDecoder(r)
+	dec.CharsetReader = charset.NewReaderLabel
 	var urlset Urlset
 	err := dec.Decode(&urlset)
 	if err != nil {
