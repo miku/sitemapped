@@ -20,7 +20,6 @@ import (
 	"path"
 
 	"github.com/adrg/xdg"
-	"github.com/schollz/progressbar/v3"
 	"github.com/sethgrid/pester"
 )
 
@@ -210,17 +209,13 @@ func DownloadFile(url string, dst string) error {
 		return err
 	}
 	defer resp.Body.Close()
-	// TODO: use temporary file
+	// tempfile, same path, so assume save to atomically rename(2).
 	tmpf := dst + ".wip"
 	f, err := os.OpenFile(tmpf, os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return err
 	}
-	bar := progressbar.DefaultBytes(
-		resp.ContentLength,
-		"downloading",
-	)
-	_, err = io.Copy(io.MultiWriter(f, bar), resp.Body)
+	_, err = io.Copy(f, resp.Body)
 	if err := f.Close(); err != nil {
 		return err
 	}
