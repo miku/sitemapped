@@ -8,6 +8,14 @@ Sitemaps are cached locally, following the [XDG
 standard](https://wiki.archlinux.org/title/XDG_Base_Directory); this speeds up
 subsequent invocations, but it is also possible to force a redownload.
 
+## Install
+
+Install latest version w/ Go toolchain.
+
+```
+$ go install github.com/miku/sitemapped@latest
+```
+
 ## Usage
 
 ```
