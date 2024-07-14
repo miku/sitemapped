@@ -146,7 +146,6 @@ func urlsFromSitemapIndex(cache *Cache, r io.Reader, w io.Writer) error {
 			return err
 		}
 	}
-	log.Printf("found locs: %d", len(smi.Sitemap))
 	return nil
 }
 
