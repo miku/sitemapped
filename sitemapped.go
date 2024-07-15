@@ -27,7 +27,7 @@ import (
 	"golang.org/x/net/html/charset"
 )
 
-const Version = "0.1.2"
+const Version = "0.1.3"
 
 // SitemapIndexEntry is an entry in a sitemap index style sitemap.
 type SitemapIndexEntry struct {
