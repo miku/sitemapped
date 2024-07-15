@@ -78,6 +78,7 @@ func main() {
 	if err := os.MkdirAll(*cacheDir, 755); err != nil {
 		log.Fatal(err)
 	}
+	// XXX: allow insecure certs; https://stackoverflow.com/a/12122718/89391
 	cache := &Cache{Dir: *cacheDir}
 	httpClient.MaxRetries = *maxRetries
 	httpClient.Backoff = pester.ExponentialBackoff
