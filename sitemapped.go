@@ -9,6 +9,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"compress/gzip"
 	"crypto/sha1"
 	"encoding/xml"
 	"flag"
@@ -18,6 +19,8 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"slices"
+	"strings"
 
 	"github.com/adrg/xdg"
 	"github.com/sethgrid/pester"
@@ -133,11 +136,26 @@ func urlsFromSitemapIndex(cache *Cache, r io.Reader, w io.Writer) error {
 		if err != nil {
 			return err
 		}
+		// No defer for closeList, as we are exiting the program anyway, if we
+		// fail here. If that is to be changed, add a defer.
+		var closeList []io.Closer
+		var rc io.ReadCloser
 		f, err := os.Open(fn)
 		if err != nil {
 			return err
 		}
-		dec = xml.NewDecoder(f)
+		closeList = append(closeList, f)
+		switch {
+		case strings.HasSuffix(sm.Loc, ".gz"):
+			rc, err = gzip.NewReader(f)
+			if err != nil {
+				return err
+			}
+			closeList = append(closeList, rc)
+		default:
+			rc = f
+		}
+		dec = xml.NewDecoder(rc)
 		dec.CharsetReader = charset.NewReaderLabel
 		var uset Urlset
 		if err := dec.Decode(&uset); err != nil {
@@ -149,8 +167,11 @@ func urlsFromSitemapIndex(cache *Cache, r io.Reader, w io.Writer) error {
 				return err
 			}
 		}
-		if err := f.Close(); err != nil {
-			return err
+		slices.Reverse(closeList) // close gz RC before file
+		for _, c := range closeList {
+			if err := c.Close(); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
