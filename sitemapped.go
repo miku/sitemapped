@@ -162,7 +162,7 @@ func urlsFromSitemapIndex(cache *Cache, r io.Reader, w io.Writer) error {
 			log.Fatal(err)
 		}
 		for _, u := range uset.URL {
-			_, err := fmt.Fprintln(w, u.Loc)
+			_, err := fmt.Fprintln(w, strings.TrimSpace(u.Loc))
 			if err != nil {
 				return err
 			}
@@ -186,7 +186,7 @@ func urlsFromSitemap(r io.Reader, w io.Writer) error {
 		return err
 	}
 	for _, u := range urlset.URL {
-		_, err := fmt.Fprintln(w, u.Loc)
+		_, err := fmt.Fprintln(w, strings.TrimSpace(u.Loc))
 		if err != nil {
 			return err
 		}
