@@ -8,6 +8,8 @@ Sitemaps are cached locally, following the [XDG
 standard](https://wiki.archlinux.org/title/XDG_Base_Directory); this speeds up
 subsequent invocations, but it is also possible to force a redownload.
 
+Sitemap protocol spec: [www.sitemaps.org/protocol.html](https://www.sitemaps.org/protocol.html)
+
 ## Install
 
 Install latest version w/ Go toolchain.
