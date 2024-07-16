@@ -66,6 +66,7 @@ var (
 	force       = flag.Bool("f", false, "force redownload, even if cached file exists")
 	showVersion = flag.Bool("version", false, "show version")
 	timeout     = flag.Duration("T", 15*time.Second, "timeout")
+	userAgent   = flag.String("ua", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36", "user agent")
 )
 
 func main() {
@@ -91,7 +92,7 @@ func main() {
 	httpClient.MaxRetries = *maxRetries
 	httpClient.Backoff = pester.ExponentialBackoff
 	httpClient.RetryOnHTTP429 = true
-	cache := &Cache{Client: httpClient, Dir: *cacheDir}
+	cache := &Cache{Client: httpClient, Dir: *cacheDir, UserAgent: *userAgent}
 	sitemapURL := flag.Arg(0) // sitemap or sitemapindex
 	fn, err := cache.URL(sitemapURL, nil)
 	if err != nil {
@@ -205,8 +206,9 @@ func urlsFromSitemap(r io.Reader, w io.Writer) error {
 }
 
 type Cache struct {
-	Dir    string
-	Client Doer
+	Dir       string
+	Client    Doer
+	UserAgent string
 }
 
 type DownloadOpts struct {
@@ -250,6 +252,7 @@ func DownloadFile(client Doer, url string, dst string) error {
 	if err != nil {
 		return err
 	}
+	req.Header.Set("User-Agent", "Golang_Spider_Bot/3.0")
 	resp, err := client.Do(req)
 	if err != nil {
 		return err
