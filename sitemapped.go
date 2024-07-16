@@ -65,7 +65,7 @@ var (
 	cacheDir    = flag.String("cache-dir", defaultCachePath, "path to cache directory")
 	force       = flag.Bool("f", false, "force redownload, even if cached file exists")
 	showVersion = flag.Bool("version", false, "show version")
-	timeout     = flag.Duration("T", 30*time.Second, "timeout")
+	timeout     = flag.Duration("T", 15*time.Second, "timeout")
 )
 
 func main() {
