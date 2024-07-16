@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"crypto/sha1"
+	"crypto/tls"
 	"encoding/xml"
 	"flag"
 	"fmt"
@@ -21,6 +22,7 @@ import (
 	"path"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/adrg/xdg"
 	"github.com/sethgrid/pester"
@@ -58,12 +60,12 @@ type Urlset struct {
 
 var (
 	defaultCachePath = path.Join(xdg.CacheHome, "sitemap")
-	httpClient       = pester.New()
 
 	maxRetries  = flag.Int("r", 3, "max HTTP client retries")
 	cacheDir    = flag.String("cache-dir", defaultCachePath, "path to cache directory")
 	force       = flag.Bool("f", false, "force redownload, even if cached file exists")
 	showVersion = flag.Bool("version", false, "show version")
+	timeout     = flag.Duration("T", 30*time.Second, "timeout")
 )
 
 func main() {
@@ -78,11 +80,18 @@ func main() {
 	if err := os.MkdirAll(*cacheDir, 755); err != nil {
 		log.Fatal(err)
 	}
-	// XXX: allow insecure certs; https://stackoverflow.com/a/12122718/89391
-	cache := &Cache{Dir: *cacheDir}
+	transport := http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	client := &http.Client{
+		Timeout:   *timeout,
+		Transport: &transport,
+	}
+	httpClient := pester.NewExtendedClient(client)
 	httpClient.MaxRetries = *maxRetries
 	httpClient.Backoff = pester.ExponentialBackoff
 	httpClient.RetryOnHTTP429 = true
+	cache := &Cache{Client: httpClient, Dir: *cacheDir}
 	sitemapURL := flag.Arg(0) // sitemap or sitemapindex
 	fn, err := cache.URL(sitemapURL, nil)
 	if err != nil {
@@ -196,7 +205,8 @@ func urlsFromSitemap(r io.Reader, w io.Writer) error {
 }
 
 type Cache struct {
-	Dir string
+	Dir    string
+	Client Doer
 }
 
 type DownloadOpts struct {
@@ -223,20 +233,24 @@ func (c *Cache) URL(url string, opts *DownloadOpts) (string, error) {
 	}
 	dst := path.Join(dir, opts.Filename)
 	if _, err := os.Stat(dst); os.IsNotExist(err) || opts.Force {
-		if err := DownloadFile(url, dst); err != nil {
+		if err := DownloadFile(c.Client, url, dst); err != nil {
 			return "", err
 		}
 	}
 	return dst, nil
 }
 
+type Doer interface {
+	Do(*http.Request) (*http.Response, error)
+}
+
 // DownloadFile retrieves a file from URL, atomically.
-func DownloadFile(url string, dst string) error {
+func DownloadFile(client Doer, url string, dst string) error {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return err
 	}
-	resp, err := httpClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}
