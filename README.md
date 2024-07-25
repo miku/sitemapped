@@ -52,7 +52,7 @@ https://besra.net/index.php/ijabs/
 Sitemap index example:
 
 ```
-$ sitemapped https://core.ac.uk/sitemap.xml
+$ sitemapped https://core.ac.uk/sitemap.xml # 200M+ urls
 https://core.ac.uk/reader/14671
 https://core.ac.uk/download/pdf/14671.pdf
 https://core.ac.uk/display/14671
