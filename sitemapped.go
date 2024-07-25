@@ -235,7 +235,7 @@ func (c *Cache) URL(url string, opts *DownloadOpts) (string, error) {
 	}
 	dst := path.Join(dir, opts.Filename)
 	if _, err := os.Stat(dst); os.IsNotExist(err) || opts.Force {
-		if err := DownloadFile(c.Client, url, dst); err != nil {
+		if err := DownloadFile(c.Client, url, dst, c.UserAgent); err != nil {
 			return "", err
 		}
 	}
@@ -247,12 +247,12 @@ type Doer interface {
 }
 
 // DownloadFile retrieves a file from URL, atomically.
-func DownloadFile(client Doer, url string, dst string) error {
+func DownloadFile(client Doer, url string, dst string, userAgent string) error {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return err
 	}
-	req.Header.Set("User-Agent", "Golang_Spider_Bot/3.0")
+	req.Header.Set("User-Agent", userAgent)
 	resp, err := client.Do(req)
 	if err != nil {
 		return err
