@@ -23,7 +23,7 @@ $ go install github.com/miku/sitemapped@latest
 
 ## Usage
 
-```
+```shell
 $ sitemapped
 Usage of sitemapped:
   -cache-dir string
@@ -35,7 +35,7 @@ Usage of sitemapped:
 
 ## Examples
 
-```
+```shell
 $ sitemapped https://besra.net/sitemap.xml | head
 https://besra.net/
 https://besra.net/index.php/upcoming-conferences/icbsss/
@@ -51,7 +51,7 @@ https://besra.net/index.php/ijabs/
 
 Sitemap index example:
 
-```
+```shell
 $ sitemapped https://core.ac.uk/sitemap.xml # 200M+ urls
 https://core.ac.uk/reader/14671
 https://core.ac.uk/download/pdf/14671.pdf
