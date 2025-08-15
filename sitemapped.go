@@ -13,6 +13,7 @@ import (
 	"crypto/sha1"
 	"crypto/tls"
 	"encoding/xml"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -28,6 +29,8 @@ import (
 	"github.com/sethgrid/pester"
 	"golang.org/x/net/html/charset"
 )
+
+var ErrNotFound = errors.New("not found")
 
 const Version = "0.1.5"
 
@@ -67,6 +70,7 @@ var (
 	showVersion = flag.Bool("version", false, "show version")
 	timeout     = flag.Duration("T", 15*time.Second, "timeout")
 	userAgent   = flag.String("ua", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36", "user agent")
+	bestEffort  = flag.Bool("B", false, "just log errors")
 )
 
 func main() {
@@ -115,7 +119,11 @@ func main() {
 		err = urlsFromSitemap(f, bw)
 	}
 	if err != nil {
-		log.Fatal(err)
+		if *bestEffort {
+			log.Printf("%s: %v", fn, err)
+		} else {
+			log.Fatalf("%s: %v", fn, err)
+		}
 	}
 }
 
@@ -144,6 +152,9 @@ func urlsFromSitemapIndex(cache *Cache, r io.Reader, w io.Writer) error {
 	}
 	for _, sm := range smi.Sitemap {
 		fn, err := cache.URL(sm.Loc, &DownloadOpts{Force: *force})
+		if err == ErrNotFound {
+			continue // stale sitemap link, just proceed
+		}
 		if err != nil {
 			return err
 		}
@@ -170,10 +181,18 @@ func urlsFromSitemapIndex(cache *Cache, r io.Reader, w io.Writer) error {
 		dec.CharsetReader = charset.NewReaderLabel
 		var uset Urlset
 		if err := dec.Decode(&uset); err != nil {
-			log.Fatal(err)
+			if *bestEffort {
+				log.Printf("skip: %v", sm.Loc)
+				continue
+			} else {
+				return err
+			}
 		}
 		for _, u := range uset.URL {
 			_, err := fmt.Fprintln(w, strings.TrimSpace(u.Loc))
+			if err == ErrNotFound {
+				continue
+			}
 			if err != nil {
 				return err
 			}
@@ -258,6 +277,9 @@ func DownloadFile(client Doer, url string, dst string, userAgent string) error {
 		return err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		return ErrNotFound
+	}
 	// tempfile, same path, so assume save to atomically rename(2).
 	tmpf := dst + ".wip"
 	f, err := os.OpenFile(tmpf, os.O_CREATE|os.O_WRONLY, 0644)
