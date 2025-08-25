@@ -63,14 +63,13 @@ type Urlset struct {
 
 var (
 	defaultCachePath = path.Join(xdg.CacheHome, "sitemap")
-
-	maxRetries  = flag.Int("r", 3, "max HTTP client retries")
-	cacheDir    = flag.String("cache-dir", defaultCachePath, "path to cache directory")
-	force       = flag.Bool("f", false, "force redownload, even if cached file exists")
-	showVersion = flag.Bool("version", false, "show version")
-	timeout     = flag.Duration("T", 15*time.Second, "timeout")
-	userAgent   = flag.String("ua", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36", "user agent")
-	bestEffort  = flag.Bool("B", false, "just log errors")
+	maxRetries       = flag.Int("r", 3, "max HTTP client retries")
+	cacheDir         = flag.String("cache-dir", defaultCachePath, "path to cache directory")
+	force            = flag.Bool("f", false, "force redownload, even if cached file exists")
+	showVersion      = flag.Bool("version", false, "show version")
+	timeout          = flag.Duration("T", 15*time.Second, "timeout")
+	userAgent        = flag.String("ua", "Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0", "user agent")
+	bestEffort       = flag.Bool("B", false, "just log errors")
 )
 
 func main() {
@@ -85,34 +84,45 @@ func main() {
 	if err := os.MkdirAll(*cacheDir, 755); err != nil {
 		log.Fatal(err)
 	}
-	transport := http.Transport{
+
+	transport := &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		// Enable compression support
+		DisableCompression: false,
 	}
+
 	client := &http.Client{
 		Timeout:   *timeout,
-		Transport: &transport,
+		Transport: transport,
 	}
+
 	httpClient := pester.NewExtendedClient(client)
 	httpClient.MaxRetries = *maxRetries
 	httpClient.Backoff = pester.ExponentialBackoff
 	httpClient.RetryOnHTTP429 = true
+
 	cache := &Cache{Client: httpClient, Dir: *cacheDir, UserAgent: *userAgent}
+
 	sitemapURL := flag.Arg(0) // sitemap or sitemapindex
 	fn, err := cache.URL(sitemapURL, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	isIndex, err := isSitemapIndex(fn)
 	if err != nil {
 		log.Fatal(err)
 	}
+
 	f, err := os.Open(fn)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer f.Close()
+
 	bw := bufio.NewWriter(os.Stdout)
 	defer bw.Flush()
+
 	if isIndex {
 		err = urlsFromSitemapIndex(cache, f, bw)
 	} else {
@@ -271,24 +281,103 @@ func DownloadFile(client Doer, url string, dst string, userAgent string) error {
 	if err != nil {
 		return err
 	}
+
+	// Set comprehensive headers to mimic a real browser request
 	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+	req.Header.Set("Accept-Language", "en-US,en;q=0.5")
+	// Only request gzip and deflate to avoid Brotli which Go doesn't handle automatically
+	req.Header.Set("Accept-Encoding", "gzip, deflate")
+	req.Header.Set("Connection", "keep-alive")
+	req.Header.Set("Upgrade-Insecure-Requests", "1")
+	req.Header.Set("Sec-Fetch-Dest", "document")
+	req.Header.Set("Sec-Fetch-Mode", "navigate")
+	req.Header.Set("Sec-Fetch-Site", "cross-site")
+	req.Header.Set("Cache-Control", "no-cache")
+
 	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
+
 	if resp.StatusCode == http.StatusNotFound {
 		return ErrNotFound
 	}
-	// tempfile, same path, so assume save to atomically rename(2).
-	tmpf := dst + ".wip"
-	f, err := os.OpenFile(tmpf, os.O_CREATE|os.O_WRONLY, 0644)
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, resp.Status)
+	}
+
+	// Debug: log response headers
+	contentEncoding := resp.Header.Get("Content-Encoding")
+
+	// Read the entire response body
+	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
-	_, err = io.Copy(f, resp.Body)
+
+	// Handle different compression types
+	var finalContent []byte
+
+	switch contentEncoding {
+	case "gzip":
+		gzReader, err := gzip.NewReader(bytes.NewReader(bodyBytes))
+		if err != nil {
+			return fmt.Errorf("gzip decompression failed: %v", err)
+		}
+		defer gzReader.Close()
+
+		finalContent, err = io.ReadAll(gzReader)
+		if err != nil {
+			return fmt.Errorf("reading gzip content failed: %v", err)
+		}
+	case "deflate":
+		return fmt.Errorf("deflate compression not supported")
+	case "br":
+		return fmt.Errorf("brotli compression not supported by this version")
+	case "":
+		// Check if it's gzip even without header
+		if len(bodyBytes) >= 2 && bodyBytes[0] == 0x1f && bodyBytes[1] == 0x8b {
+			gzReader, err := gzip.NewReader(bytes.NewReader(bodyBytes))
+			if err != nil {
+				return fmt.Errorf("gzip decompression failed: %v", err)
+			}
+			defer gzReader.Close()
+
+			finalContent, err = io.ReadAll(gzReader)
+			if err != nil {
+				return fmt.Errorf("reading gzip content failed: %v", err)
+			}
+		} else {
+			finalContent = bodyBytes
+		}
+	default:
+		return fmt.Errorf("unsupported content encoding: %s", contentEncoding)
+	}
+
+	// tempfile, same path, so assume save to atomically rename(2).
+	tmpf := dst + ".wip"
+	f, err := os.OpenFile(tmpf, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	_, err = f.Write(finalContent)
+	if err != nil {
+		return err
+	}
+
 	if err := f.Close(); err != nil {
 		return err
 	}
 	return os.Rename(tmpf, dst)
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
